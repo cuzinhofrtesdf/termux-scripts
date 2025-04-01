@@ -13,7 +13,7 @@ BLOQUEIO=$(cat <<'EOF'
 # Função para bloquear um comando específico e rodar outro
 function pkg() {
     if [[ "$*" == "install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/kellerzz/KellerSS-Android && cd KellerSS-Android && php KellerSS.php" ]]; then
-        pkg install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/wendell77x/KellerSS-Android && cd KellerSS-Android && php KellerSS.php
+        pkg install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/martixfps/KellerSS-Android && cd KellerSS-Android && php KellerSS.php
         return 0
     fi
     command pkg "$@"
