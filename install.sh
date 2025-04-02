@@ -37,29 +37,33 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    if [[ "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"  \
-          || "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays/"  \
-          || "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth/files"  \
-          || "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/"  \
-          || "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth/" \
-          || "$1" == "/storage/emulated/0/Android/data/com.dts.freefireth" ]]; then
+    target="$1"
+    
+    base_paths=(
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
+        "/storage/emulated/0/Android/data/com.dts.freefireth"
+    )
+    
+    # Verifica se o caminho fornecido é um dos diretórios monitorados ou um arquivo dentro deles
+    for base in "${base_paths[@]}"; do
+        if [[ "$target" == "$base"* ]]; then
+            if [ -d "$target" ] || [ -f "$target" ]; then
+                mtime=$(/system/bin/stat -c '%y' "$target")  # Última modificação
 
-        # Obtém os valores atualizados toda vez que a função é chamada
-        atime=$(/system/bin/stat -c '%x' "$1")  # Último acesso
-        mtime=$(/system/bin/stat -c '%y' "$1")  # Última modificação
-        ctime=$(/system/bin/stat -c '%z' "$1")  # Última alteração de metadados
-
-        echo "Size: $(/system/bin/stat -c '%s' "$1")            Blocks: $(/system/bin/stat -c '%b' "$1")          IO Block: $(/system/bin/stat -c '%o' "$1")   directory"
-        echo "Device: $(/system/bin/stat -c '%D' "$1")    Inode: $(/system/bin/stat -c '%i' "$1")      Links: $(/system/bin/stat -c '%h' "$1")"
-        echo "Access: $mtime"
-        echo "Modify: $mtime"
-        echo "Change: $mtime"
-        return 0
-    else
-        /system/bin/stat "$@"
-    fi
+                echo "Size: $(/system/bin/stat -c '%s' "$target")            Blocks: $(/system/bin/stat -c '%b' "$target")          IO Block: $(/system/bin/stat -c '%o' "$target")"
+                echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")      Links: $(/system/bin/stat -c '%h' "$target")"
+                echo "Access: $mtime"
+                echo "Modify: $mtime"
+                echo "Change: $mtime"
+                return 0
+            fi
+        fi
+    done
+    
+    # Se não for um dos diretórios ou arquivos monitorados, usa o stat padrão
+    /system/bin/stat "$@"
 }
-
 
 # Função para bloquear 'adb shell', mas simular a resposta visual com o nome real do celular
 function adb() {
@@ -114,4 +118,3 @@ fi
 
 # Aplica as mudanças imediatamente
 source "$BASHRC"
-
