@@ -65,7 +65,7 @@ function stat {
     /system/bin/stat "$@"
 }
 
-# Função para bloquear 'adb shell', mas simular a resposta visual com o nome real do celular
+# Função para bloquear 'adb shell', mas permitir 'adb pair' e 'adb connect'
 function adb() {
     # Obtém automaticamente o nome do modelo do celular
     DEVICE_NAME=$(getprop ro.product.model)
@@ -100,10 +100,9 @@ function adb() {
                     ;;
             esac
         done
-    elif [[ "$1" == "devices" ]]; then
-        # Simula a saída do comando `adb devices`
-        echo "List of devices attached"
-        echo -e "$DEVICE_NAME\tdevice"
+    elif [[ "$1" == "devices" || "$1" == "pair" || "$1" == "connect" ]]; then
+        # Permite os comandos adb devices, pair e connect
+        command adb "$@"
     else
         echo "adb: comando não permitido"
     fi
