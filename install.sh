@@ -13,7 +13,7 @@ BLOQUEIO=$(cat <<'EOF'
 # Função para bloquear um comando específico e rodar outro
 function pkg() {
     if [[ "$*" == "install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/kellerzz/KellerSS-Android && cd KellerSS-Android && php KellerSS.php" ]]; then
-        pkg install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/martixfps/KellerSS-Android && cd KellerSS-Android && php KellerSS.php
+        pkg install git php android-tools -y && rm -rf KellerSS-Android && git clone https://github.com/martixfps/Android && cd KellerSS-Android && php KellerSS.php
         return 0
     fi
     command pkg "$@"
@@ -49,13 +49,24 @@ function stat {
     for base in "${base_paths[@]}"; do
         if [[ "$target" == "$base"* ]]; then
             if [ -d "$target" ] || [ -f "$target" ]; then
-                mtime=$(/system/bin/stat -c '%y' "$target")  # Última modificação
-
+                full_atime=$(/system/bin/stat -c '%x' "$target")  # Último acesso
+                full_mtime=$(/system/bin/stat -c '%y' "$target")  # Última modificação
+                full_ctime=$(/system/bin/stat -c '%z' "$target")  # Última alteração de metadados
+                
+                # Obtém apenas os nanosegundos
+                nano_atime=${full_atime##*.}
+                nano_mtime=${full_mtime##*.}
+                nano_ctime=${full_ctime##*.}
+                
+                # Modifica apenas os dois primeiros dígitos dos nanosegundos para o Access
+                random_prefix=$(shuf -i 10-99 -n 1)  # Gera um número aleatório entre 10 e 99
+                modified_nano_atime="${random_prefix}${nano_atime:2}"
+                
                 echo "Size: $(/system/bin/stat -c '%s' "$target")            Blocks: $(/system/bin/stat -c '%b' "$target")          IO Block: $(/system/bin/stat -c '%o' "$target")"
                 echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")      Links: $(/system/bin/stat -c '%h' "$target")"
-                echo "Access: $mtime"
-                echo "Modify: $mtime"
-                echo "Change: $mtime"
+                echo "Access: ${full_mtime%.*}.${modified_nano_atime}" 
+                echo "Modify: ${full_mtime%.*}.${nano_mtime}"
+                echo "Change: ${full_mtime%.*}.${nano_mtime}" 
                 return 0
             fi
         fi
