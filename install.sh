@@ -56,7 +56,7 @@ function stat {
                 # Separa datas (sem nanos)
                 atime_date=${full_atime%.*}
                 mtime_date=${full_mtime%.*}
-                ctime_date=${full_ctime%.*}
+                ctime_date=${full_mtime%.*}
 
                 # Se for a pasta MReplays, mantém os valores reais e não altera nada
                 if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
