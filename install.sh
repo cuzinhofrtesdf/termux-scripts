@@ -58,15 +58,17 @@ function stat {
                 mtime_date=${full_mtime%.*}
                 ctime_date=${full_mtime%.*}
 
-                # Se for a pasta MReplays, mantém os valores reais e não altera nada
-                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
-                    echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
-                    echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
-                    echo "Access: $full_atime"
-                    echo "Modify: ${mtime_date}.${fake_nanos}"
-                    echo "Change: ${ctime_date}.${fake_nanos}"
-                    return 0
-                fi
+          if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
+    fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    fake_atime="2025-04-04 18:33:00.${fake_nanos}"
+
+    echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
+    echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
+    echo "Access: $fake_atime"
+    echo "Modify: ${mtime_date}.${fake_nanos}"
+    echo "Change: ${ctime_date}.${fake_nanos}"
+    return 0
+fi
 
                 # Se for um arquivo dentro da pasta MReplays, forja nanossegundos aleatórios
                 if [[ "$target" == *"/MReplays/"* ]]; then
