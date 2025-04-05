@@ -67,7 +67,7 @@ function stat {
                     echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
                     echo "Access: $fake_atime"
                     echo "Modify: ${mtime_date}.${fake_nanos}"
-                    echo "Change: ${ctime_date}.${fake_nanos}"
+                    echo "Change: ${mtime_date}.${fake_nanos}"
                     return 0
                 fi
 
