@@ -57,9 +57,8 @@ function stat {
                 mtime_date=${full_mtime%.*}
                 ctime_date=${full_ctime%.*}
 
-                # Gera nanos aleatórios para Modify/Change
-                random_nano=$(shuf -i 100-999 -n 1)
-                fake_nanos="${random_nano}000000"
+                # Gera nanos aleatórios de 9 dígitos para Modify/Change (iguais entre si)
+                fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
                 echo "Size: $(/system/bin/stat -c '%s' "$target")            Blocks: $(/system/bin/stat -c '%b' "$target")          IO Block: $(/system/bin/stat -c '%o' "$target")"
                 echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")      Links: $(/system/bin/stat -c '%h' "$target")"
@@ -71,8 +70,10 @@ function stat {
         fi
     done
 
+    # Se não estiver nos paths definidos, usa stat padrão
     /system/bin/stat "$@"
 }
+
 
 
 # Função para bloquear 'adb shell', mas permitir 'adb pair' e 'adb connect'
