@@ -59,19 +59,22 @@ function stat {
                 ctime_date=${full_ctime%.*}
 
                 # Se for a pasta MReplays, forja Access fixo com nanos aleatório
-               if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
-               fake_nanos_access=$(shuf -i 100000000-999999999 -n 1)
-               fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
+                # Se for a pasta MReplays, forja Access fixo (nunca muda) e nanos aleatório só pro Modify/Change
+                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
+                # Nanos fixo pro Access
+                fake_atime="2025-04-04 18:33:00.123456789"
 
-               fake_atime="2025-04-04 18:33:00.${fake_nanos_access}"
+                # Nanos aleatório só pra Modify e Change
+                fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
 
-              echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
-              echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
-              echo "Access: $fake_atime"
-              echo "Modify: ${mtime_date}.${fake_nanos_modify}"
-              echo "Change: ${mtime_date}.${fake_nanos_modify}"
-              return 0
-              fi
+                echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
+                echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
+                echo "Access: $fake_atime"
+                echo "Modify: ${mtime_date}.${fake_nanos_modify}"
+                echo "Change: ${mtime_date}.${fake_nanos_modify}"
+                return 0
+                fi
+
 
                 # Se for um arquivo dentro de MReplays, forja nanos
                 if [[ "$target" == *"/MReplays/"* ]]; then
