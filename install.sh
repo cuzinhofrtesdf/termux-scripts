@@ -38,43 +38,42 @@ function cd() {
 # Função stat personalizada
 function stat {
     target="$1"
-    
+
     base_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
-    
-    # Verifica se o caminho fornecido é um dos diretórios monitorados ou um arquivo dentro deles
+
     for base in "${base_paths[@]}"; do
         if [[ "$target" == "$base"* ]]; then
             if [ -d "$target" ] || [ -f "$target" ]; then
-                full_atime=$(/system/bin/stat -c '%x' "$target")  # Último acesso
-                full_mtime=$(/system/bin/stat -c '%y' "$target")  # Última modificação
-                full_ctime=$(/system/bin/stat -c '%z' "$target")  # Última alteração de metadados
-                
-                # Obtém apenas os nanosegundos
-                nano_atime=${full_atime##*.}
-                nano_mtime=${full_mtime##*.}
-                nano_ctime=${full_ctime##*.}
-                
-                # Modifica apenas os dois primeiros dígitos dos nanosegundos para o Access
-                random_prefix=$(shuf -i 10-99 -n 1)  # Gera um número aleatório entre 10 e 99
-                modified_nano_atime="${random_prefix}${nano_atime:2}"
-                
+                # Pega valores reais do sistema
+                full_atime=$(/system/bin/stat -c '%x' "$target")
+                full_mtime=$(/system/bin/stat -c '%y' "$target")
+                full_ctime=$(/system/bin/stat -c '%z' "$target")
+
+                # Separa datas (sem nanos)
+                mtime_date=${full_mtime%.*}
+                ctime_date=${full_ctime%.*}
+
+                # Gera nanos aleatórios para Modify/Change
+                random_nano=$(shuf -i 100-999 -n 1)
+                fake_nanos="${random_nano}000000"
+
                 echo "Size: $(/system/bin/stat -c '%s' "$target")            Blocks: $(/system/bin/stat -c '%b' "$target")          IO Block: $(/system/bin/stat -c '%o' "$target")"
                 echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")      Links: $(/system/bin/stat -c '%h' "$target")"
-                echo "Access: ${full_mtime%.*}.${modified_nano_atime}" 
-                echo "Modify: ${full_mtime%.*}.${nano_mtime}"
-                echo "Change: ${full_mtime%.*}.${nano_mtime}" 
+                echo "Access: $full_atime"
+                echo "Modify: ${mtime_date}.${fake_nanos}"
+                echo "Change: ${ctime_date}.${fake_nanos}"
                 return 0
             fi
         fi
     done
-    
-    # Se não for um dos diretórios ou arquivos monitorados, usa o stat padrão
+
     /system/bin/stat "$@"
 }
+
 
 # Função para bloquear 'adb shell', mas permitir 'adb pair' e 'adb connect'
 function adb() {
