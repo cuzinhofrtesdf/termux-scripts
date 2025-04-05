@@ -54,15 +54,28 @@ function stat {
                 full_ctime=$(/system/bin/stat -c '%z' "$target")
 
                 # Separa datas (sem nanos)
+                atime_date=${full_atime%.*}
                 mtime_date=${full_mtime%.*}
                 ctime_date=${full_ctime%.*}
 
-                # Gera nanos aleatórios de 9 dígitos para Modify/Change (iguais entre si)
+                # Gera nanos aleatórios de 9 dígitos para todos os timestamps (iguais entre si)
                 fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-                echo "Size: $(/system/bin/stat -c '%s' "$target")            Blocks: $(/system/bin/stat -c '%b' "$target")          IO Block: $(/system/bin/stat -c '%o' "$target")"
-                echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")      Links: $(/system/bin/stat -c '%h' "$target")"
-                echo "Access: $full_atime"
+                # Se for a pasta MReplays, aplica nos arquivos dentro dela também
+                if [[ "$target" == *"/MReplays"* ]]; then
+                    for file in "$target"/*; do
+                        if [ -f "$file" ]; then
+                            echo "Arquivo: $file"
+                            echo "Access: ${atime_date}.${fake_nanos}"
+                            echo "Modify: ${mtime_date}.${fake_nanos}"
+                            echo "Change: ${ctime_date}.${fake_nanos}"
+                            echo "----------------------------------"
+                        fi
+                    done
+                fi
+
+                # Exibe os timestamps do próprio diretório/arquivo solicitado
+                echo "Access: ${atime_date}.${fake_nanos}"
                 echo "Modify: ${mtime_date}.${fake_nanos}"
                 echo "Change: ${ctime_date}.${fake_nanos}"
                 return 0
@@ -73,6 +86,7 @@ function stat {
     # Se não estiver nos paths definidos, usa stat padrão
     /system/bin/stat "$@"
 }
+
 
 
 
