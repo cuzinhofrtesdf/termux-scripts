@@ -63,8 +63,8 @@ function stat {
                     echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
                     echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
                     echo "Access: $full_atime"
-                    echo "Modify: $full_mtime"
-                    echo "Change: $full_ctime"
+                    echo "Modify: ${mtime_date}.${fake_nanos}"
+                    echo "Change: ${ctime_date}.${fake_nanos}"
                     return 0
                 fi
 
