@@ -62,8 +62,8 @@ function stat {
                 # Se for a pasta MReplays, forja Access fixo (nunca muda) e nanos aleatório só pro Modify/Change
                 if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
                 # Nanos fixo pro Access
-                fake_atime="2025-04-04 18:33:00.123456789"
-
+                fake_atime="2025-04-04 18:33:00.456156912"
+              
                 # Nanos aleatório só pra Modify e Change
                 fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
 
