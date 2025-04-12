@@ -37,68 +37,53 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    target="$1"
-
-    base_paths=(
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
-        "/storage/emulated/0/Android/data/com.dts.freefireth"
-    )
-
-    for base in "${base_paths[@]}"; do
-        if [[ "$target" == "$base"* ]]; then
-            if [ -d "$target" ] || [ -f "$target" ]; then
-                # Pega valores reais do sistema
-                full_atime=$(/system/bin/stat -c '%x' "$target")
-                full_mtime=$(/system/bin/stat -c '%y' "$target")
-                full_ctime=$(/system/bin/stat -c '%z' "$target")
-
-                # Separa datas (sem nanos)
-                atime_date=${full_atime%.*}
-                mtime_date=${full_mtime%.*}
-                ctime_date=${full_ctime%.*}
-
-                # Se for a pasta MReplays, forja Access fixo com nanos aleatório
-                # Se for a pasta MReplays, forja Access fixo (nunca muda) e nanos aleatório só pro Modify/Change
-                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
-                # Nanos fixo pro Access
-                fake_atime="2025-04-04 18:33:00.456156912"
-              
-                # Nanos aleatório só pra Modify e Change
-                fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
-
-                echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
-                echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
-                echo "Access: $fake_atime"
-                echo "Modify: ${mtime_date}.${fake_nanos_modify}"
-                echo "Change: ${mtime_date}.${fake_nanos_modify}"
-                return 0
-                fi
-
-
-                # Se for um arquivo dentro de MReplays, forja nanos
-                if [[ "$target" == *"/MReplays/"* ]]; then
-                    fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-                    echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
-                    echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
-                    echo "Access: ${mtime_date}.${fake_nanos}"
-                    echo "Modify: ${mtime_date}.${fake_nanos}"
-                    echo "Change: ${mtime_date}.${fake_nanos}"
-                    return 0
-                fi
-
-                # Qualquer outro, exibe real
-                echo "Access: $full_atime"
-                echo "Modify: $full_mtime"
-                echo "Change: $full_ctime"
-                return 0
-            fi
+    target="${1%/}"  # Remove barra final se existir
+    
+    # Caminho exato da pasta MReplays
+    MREPLAYS_PATH="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+    
+    # 1. Se for a pasta MReplays (caminho exato)
+    if [[ "$target" == "$MREPLAYS_PATH" ]]; then
+        # Encontra o arquivo mais recente na pasta
+        latest_file=$(ls -t "$MREPLAYS_PATH" | head -n 1)
+        
+        if [[ -n "$latest_file" ]]; then
+            # Pega o mtime do arquivo mais recente
+            file_mtime=$(/system/bin/stat -c '%y' "$MREPLAYS_PATH/$latest_file")
+            modify_time="${file_mtime%.*}.738291465 +0000"
+        else
+            modify_time="2023-10-15 14:22:00.738291465 +0000"
         fi
-    done
-
-    # Fora dos paths definidos, stat normal
+        
+        echo "  File: '$target'"
+        echo "  Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")"
+        echo "Access: 2025-04-04 18:33:00.456156912 +0000"  # Fixo
+        echo "Modify: $modify_time"  # Igual ao arquivo mais recente
+        echo "Change: $modify_time"  # Igual ao arquivo mais recente
+        return 0
+    fi
+    
+    # 2. Se for arquivo DENTRO de MReplays
+    if [[ "$target" == "$MREPLAYS_PATH"/* ]]; then
+        # Pega os timestamps REAIS do arquivo
+        real_mtime=$(/system/bin/stat -c '%y' "$target")
+        real_atime=$(/system/bin/stat -c '%x' "$target")
+        real_ctime=$(/system/bin/stat -c '%z' "$target")
+        
+        echo "  File: '$target'"
+        echo "  Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")"
+        echo "Access: ${real_atime%.*}.123456789 +0000"
+        echo "Modify: ${real_mtime%.*}.123456789 +0000"
+        echo "Change: ${real_ctime%.*}.123456789 +0000"
+        return 0
+    fi
+    
+    # 3. Para qualquer outro arquivo/pasta, mostra stat normal
     /system/bin/stat "$@"
 }
+
+# Substitui o comando stat original
+alias stat=stat
 
 
 
