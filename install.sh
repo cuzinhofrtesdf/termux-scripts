@@ -72,9 +72,9 @@ function stat {
         
         echo "  File: '$target'"
         echo "  Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")"
-        echo "Access: ${real_atime%.*}.123456789 +0000"
+        echo "Access: ${real_mtime%.*}.123456789 +0000"
         echo "Modify: ${real_mtime%.*}.123456789 +0000"
-        echo "Change: ${real_ctime%.*}.123456789 +0000"
+        echo "Change: ${real_mtime%.*}.123456789 +0000"
         return 0
     fi
     
