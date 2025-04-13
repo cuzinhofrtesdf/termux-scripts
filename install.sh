@@ -63,60 +63,60 @@ function stat {
         return 1
     fi
 
-    # Obtém informações básicas do arquivo
-    local file_name="$target"
-    local size_blocks=$(/system/bin/stat -c "Size: %s    Blocks: %b    IO Block: %B" "$target" 2>/dev/null)
-    local device_inode=$(/system/bin/stat -c "Device: %d    Inode: %i    Links: %h" "$target" 2>/dev/null)
-    local full_mtime=$(/system/bin/stat -c '%y' "$target" 2>/dev/null)
-    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    # Obtém o stat COMPLETO original
+    local original_stat=$(/system/bin/stat "$target" 2>/dev/null)
+    [ -z "$original_stat" ] && return 1
 
-    # Processa datas
-    local mtime_date=$(echo "$full_mtime" | awk '{print $1" "$2}' | cut -d. -f1)
-    local mtime_nano=$(echo "$full_mtime" | awk -F. '{print $2}' | cut -d' ' -f1)
+    # Extrai o Modify time original para usar como base
+    local mtime_line=$(echo "$original_stat" | grep "Modify: ")
+    local mtime_date=$(echo "$mtime_line" | awk '{print $2" "$3}' | cut -d. -f1)
+    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    local timezone="-0300"  # Fuso horário fixo
 
     # Ajuste especial para a pasta MReplays
     if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
-        # Subtrai 15 minutos do Access time apenas para a pasta
-        local atime_date=$(date -d "$mtime_date - 15 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+        # Subtrai 5 minutos do Access time apenas para a pasta
+        local atime_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
         
-        # Exibe informações da pasta
-        echo "$file_name"
-        echo "$size_blocks"
-        echo "$device_inode"
-        printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
-        printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-        printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
-        echo ""
-
-        # Processa arquivos dentro da pasta
-        local file
-        for file in "$target"/*; do
-            if [ -f "$file" ]; then
-                local file_name="$file"
-                local file_size=$(/system/bin/stat -c "Size: %s    Blocks: %b    IO Block: %B" "$file" 2>/dev/null)
-                local file_dev=$(/system/bin/stat -c "Device: %d    Inode: %i    Links: %h" "$file" 2>/dev/null)
-                local file_mtime=$(/system/bin/stat -c '%y' "$file" 2>/dev/null)
-                local file_mdate=$(echo "$file_mtime" | awk '{print $1" "$2}' | cut -d. -f1)
-                
-                echo "Arquivo: $file_name"
-                echo "$file_size"
-                echo "$file_dev"
-                printf "Access: %s.%09d\n" "$file_mdate" "$fake_nanos"
-                printf "Modify: %s.%09d\n" "$file_mdate" "$fake_nanos"
-                printf "Change: %s.%09d\n" "$file_mdate" "$fake_nanos"
-                echo "----------------------------------"
+        # Imprime TUDO igual ao original, só modificando as linhas Access/Modify/Change
+        echo "$original_stat" | while IFS= read -r line; do
+            if [[ "$line" == "Access: "* ]]; then
+                printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
+            elif [[ "$line" == "Modify: "* ]]; then
+                printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+            elif [[ "$line" == "Change: "* ]]; then
+                printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+            else
+                echo "$line"
             fi
         done
+
+        # Processa arquivos dentro da pasta (opcional)
+        if [ "$(ls -A "$target" 2>/dev/null)" ]; then
+            echo ""
+            for file in "$target"/*; do
+                if [ -f "$file" ]; then
+                    echo "Arquivo: $file"
+                    stat "$file"  # Chama recursivamente para arquivos
+                    echo "----------------------------------"
+                fi
+            done
+        fi
         return 0
     fi
 
-    # Para arquivos individuais
-    echo "$file_name"
-    echo "$size_blocks"
-    echo "$device_inode"
-    printf "Access: %s.%09d\n" "$mtime_date" "$fake_nanos"
-    printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-    printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
+    # Para arquivos individuais - imprime tudo igual, só modifica Access/Modify/Change
+    echo "$original_stat" | while IFS= read -r line; do
+        if [[ "$line" == "Access: "* ]]; then
+            printf "Access: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        elif [[ "$line" == "Modify: "* ]]; then
+            printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        elif [[ "$line" == "Change: "* ]]; then
+            printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        else
+            echo "$line"
+        fi
+    done
 }
 
 # Substitui o comando stat original
