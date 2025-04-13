@@ -63,60 +63,54 @@ function stat {
         return 1
     fi
 
-    # Obtém o stat COMPLETO original
-    local original_stat=$(/system/bin/stat "$target" 2>/dev/null)
-    [ -z "$original_stat" ] && return 1
+    # Obtém informações básicas do arquivo/pasta
+    local file_info=$(/system/bin/stat "$target" 2>/dev/null)
+    [ -z "$file_info" ] && return 1
 
-    # Extrai o Modify time original para usar como base
-    local mtime_line=$(echo "$original_stat" | grep "Modify: ")
-    local mtime_date=$(echo "$mtime_line" | awk '{print $2" "$3}' | cut -d. -f1)
+    # Extrai a data do nome do arquivo (se for replay)
+    local file_date=""
+    if [[ "$target" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2} ]]; then
+        file_date="${BASH_REMATCH[0]}"
+        file_date="${file_date//-/:}" # Converte 2025-04-13-16-52-14 para 2025:04:13:16:52:14
+        file_date="${file_date:0:10} ${file_date:11:8}" # Formata para "2025-04-13 16:52:14"
+    fi
+
     local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-    local timezone="-0300"  # Fuso horário fixo
+    local timezone="-0300"
 
-    # Ajuste especial para a pasta MReplays
+    # Se for a pasta MReplays
     if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
-        # Subtrai 5 minutos do Access time apenas para a pasta
-        local atime_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
-        
-        # Imprime TUDO igual ao original, só modificando as linhas Access/Modify/Change
-        echo "$original_stat" | while IFS= read -r line; do
-            if [[ "$line" == "Access: "* ]]; then
-                printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
-            elif [[ "$line" == "Modify: "* ]]; then
-                printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
-            elif [[ "$line" == "Change: "* ]]; then
-                printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
-            else
-                echo "$line"
-            fi
-        done
-
-        # Processa arquivos dentro da pasta (opcional)
-        if [ "$(ls -A "$target" 2>/dev/null)" ]; then
-            echo ""
-            for file in "$target"/*; do
-                if [ -f "$file" ]; then
-                    echo "Arquivo: $file"
-                    stat "$file"  # Chama recursivamente para arquivos
-                    echo "----------------------------------"
-                fi
-            done
+        # Usa a data do último arquivo ou atual se não encontrar
+        local last_file=$(ls -t "$target" | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
+        if [ -n "$last_file" ]; then
+            file_date="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
+        else
+            file_date=$(date '+%Y-%m-%d %H:%M:%S')
         fi
+        
+        # Access 5 minutos antes
+        local atime_date=$(date -d "$file_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$file_date")
+
+        # Imprime as informações
+        echo "$file_info" | head -n 5
+        printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
+        printf "Modify: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        printf "Change: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        
         return 0
     fi
 
-    # Para arquivos individuais - imprime tudo igual, só modifica Access/Modify/Change
-    echo "$original_stat" | while IFS= read -r line; do
-        if [[ "$line" == "Access: "* ]]; then
-            printf "Access: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
-        elif [[ "$line" == "Modify: "* ]]; then
-            printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
-        elif [[ "$line" == "Change: "* ]]; then
-            printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
-        else
-            echo "$line"
-        fi
-    done
+    # Se for um arquivo de replay
+    if [ -n "$file_date" ]; then
+        echo "$file_info" | head -n 5
+        printf "Access: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        printf "Modify: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        printf "Change: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        return 0
+    fi
+
+    # Para outros arquivos (não replay)
+    /system/bin/stat "$target"
 }
 
 # Substitui o comando stat original
