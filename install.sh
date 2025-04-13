@@ -85,6 +85,7 @@ function stat {
             latest_datetime=$(date '+%Y-%m-%d %H:%M:%S')
         fi
 
+        # Definindo as datas
         mtime_date="$latest_datetime"
         change_date="$mtime_date"  # Usando mtime como change
         access_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S')  # Ajustando para o access como mtime - 5 minutos
@@ -104,6 +105,7 @@ function stat {
         # Exibir informações sobre a pasta MReplays
         echo " Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory"
         echo "Device: 00h/00d    Inode: 12345678   Links: 2"
+        # Para a pasta MReplays, access será 5 minutos antes da mtime
         printf "Access: %s.%09d\n" "$access_date" "$fake_nanos"
         printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
         printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
@@ -127,6 +129,7 @@ function stat {
     printf "Modify: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para modify
     printf "Change: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para change
 }
+
 
 
 # Substitui o comando stat original
