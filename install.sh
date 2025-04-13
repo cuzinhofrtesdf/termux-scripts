@@ -37,79 +37,63 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    local target="$1"
+    local target="${1%/}"
     local -a base_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
 
-    # Verifica se é um path especial
+    # Verificação de path especial
     local is_special_path=0
     for base in "${base_paths[@]}"; do
-        if [[ "$target" == "$base"* ]]; then
-            is_special_path=1
-            break
-        fi
+        [[ "$target" == "$base"* ]] && { is_special_path=1; break; }
     done
 
-    if (( is_special_path == 0 )); then
-        /system/bin/stat "$@"
-        return $?
-    fi
+    # Se não for path especial, usa stat normal
+    (( is_special_path == 0 )) && { /system/bin/stat "$@"; return $?; }
 
-    if [ ! -e "$target" ]; then
-        echo "stat: cannot stat '$target': No such file or directory" >&2
-        return 1
-    fi
+    # Verifica se existe
+    [ ! -e "$target" ] && { echo "stat: cannot stat '$target': No such file or directory" >&2; return 1; }
 
-    # Obtém informações básicas do arquivo/pasta
-    local file_info=$(/system/bin/stat "$target" 2>/dev/null)
-    [ -z "$file_info" ] && return 1
+    # Para arquivos de replay
+    if [[ "$target" =~ ([0-9]{4})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
+        local file_date="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}"
+        local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+        local timezone="-0300"
 
-    # Extrai a data do nome do arquivo (se for replay)
-    local file_date=""
-    if [[ "$target" =~ [0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2} ]]; then
-        file_date="${BASH_REMATCH[0]}"
-        file_date="${file_date//-/:}" # Converte 2025-04-13-16-52-14 para 2025:04:13:16:52:14
-        file_date="${file_date:0:10} ${file_date:11:8}" # Formata para "2025-04-13 16:52:14"
-    fi
-
-    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-    local timezone="-0300"
-
-    # Se for a pasta MReplays
-    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
-        # Usa a data do último arquivo ou atual se não encontrar
-        local last_file=$(ls -t "$target" | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
-        if [ -n "$last_file" ]; then
-            file_date="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
-        else
-            file_date=$(date '+%Y-%m-%d %H:%M:%S')
-        fi
-        
-        # Access 5 minutos antes
-        local atime_date=$(date -d "$file_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$file_date")
-
-        # Imprime as informações
-        echo "$file_info" | head -n 5
-        printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
-        printf "Modify: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
-        printf "Change: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
-        
-        return 0
-    fi
-
-    # Se for um arquivo de replay
-    if [ -n "$file_date" ]; then
-        echo "$file_info" | head -n 5
+        /system/bin/stat "$target" | head -n 5
+        /system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target"
         printf "Access: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
         printf "Modify: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
         printf "Change: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
         return 0
     fi
 
-    # Para outros arquivos (não replay)
+    # Para a pasta MReplays
+    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        # Encontra o arquivo mais recente para pegar a data base
+        local last_file=$(ls -t "$target" | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
+        if [ -n "$last_file" ]; then
+            local file_date="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
+            local atime_date=$(date -d "$file_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$file_date")
+        else
+            local file_date=$(date '+%Y-%m-%d %H:%M:%S')
+            local atime_date="$file_date"
+        fi
+
+        local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+        local timezone="-0300"
+
+        /system/bin/stat "$target" | head -n 5
+        /system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target"
+        printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
+        printf "Modify: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        printf "Change: %s.%09d %s\n" "$file_date" "$fake_nanos" "$timezone"
+        return 0
+    fi
+
+    # Para outros casos
     /system/bin/stat "$target"
 }
 
