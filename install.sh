@@ -44,7 +44,7 @@ function stat {
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
 
-    # Verifica se o caminho está em um dos paths especiais
+    # Verifica se é um path especial
     local is_special_path=0
     for base in "${base_paths[@]}"; do
         if [[ "$target" == "$base"* ]]; then
@@ -53,50 +53,87 @@ function stat {
         fi
     done
 
-    # Se não for um path especial, usa o stat padrão
     if (( is_special_path == 0 )); then
         /system/bin/stat "$@"
         return $?
     fi
 
-    # Verifica se o arquivo/diretório existe
     if [ ! -e "$target" ]; then
         echo "stat: cannot stat '$target': No such file or directory" >&2
         return 1
     fi
 
-    # Obtém timestamps reais
-    local full_atime full_mtime full_ctime
-    full_atime=$(/system/bin/stat -c '%x' "$target" 2>/dev/null) || return $?
-    full_mtime=$(/system/bin/stat -c '%y' "$target" 2>/dev/null) || return $?
-    full_ctime=$(/system/bin/stat -c '%z' "$target" 2>/dev/null) || return $?
+    # Obtém todos os dados do stat original
+    local file_info=$(/system/bin/stat -c "%n
+Size: %s    Blocks: %b    IO Block: %B
+Device: %d    Inode: %i    Links: %h
+Access: %x
+Modify: %y
+Change: %z" "$target" 2>/dev/null) || return $?
 
-    # Extrai a parte principal do timestamp (sem nanossegundos)
-    local atime_date="${full_atime%.*}"
-    local mtime_date="${full_mtime%.*}"
-    local ctime_date="${full_ctime%.*}"
+    # Extrai os valores individuais
+    local file_name=$(echo "$file_info" | sed -n '1p')
+    local size_blocks=$(echo "$file_info" | sed -n '2p')
+    local device_inode=$(echo "$file_info" | sed -n '3p')
+    local full_atime=$(echo "$file_info" | sed -n '4p')
+    local full_mtime=$(echo "$file_info" | sed -n '5p')
+    local full_ctime=$(echo "$file_info" | sed -n '6p')
 
-    # Gera nanossegundos aleatórios (apenas uma vez para consistência)
+    # Processa datas
+    local atime_date=$(echo "$full_atime" | awk '{print $1, $2}')
+    local mtime_date=$(echo "$full_mtime" | awk '{print $1, $2}')
+    local ctime_date=$(echo "$full_ctime" | awk '{print $1, $2}')
     local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-    # Processa arquivos dentro de MReplays se for o caso
-    if [[ "$target" == *"/MReplays"* && -d "$target" ]]; then
+    # Ajuste especial APENAS para a pasta MReplays (não para arquivos dentro)
+    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        # Subtrai 15 minutos do Access time apenas para a pasta
+        atime_date=$(date -d "$(echo "$atime_date" | sed 's/\./-/g') - 15 minutes" '+%Y-%m-%d %H:%M:%S')
+    else
+        # Para arquivos, Access fica igual ao Modify
+        atime_date=$(echo "$mtime_date" | awk '{print $1, $2}')
+    fi
+
+    # Processa arquivos dentro de MReplays
+    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        echo "$file_name"
+        echo "$size_blocks"
+        echo "$device_inode"
+        printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
+        printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
+        printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
+        echo ""
+
         local file
         for file in "$target"/*; do
             if [ -f "$file" ]; then
-                echo "Arquivo: $file"
-                printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
-                printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                printf "Change: %s.%09d\n" "$ctime_date" "$fake_nanos"
+                local file_info_inner=$(/system/bin/stat -c "%n
+Size: %s    Blocks: %b    IO Block: %B
+Device: %d    Inode: %i    Links: %h
+Access: %x
+Modify: %y
+Change: %z" "$file" 2>/dev/null)
+                
+                local file_mtime=$(echo "$file_info_inner" | sed -n '5p' | awk '{print $1, $2}')
+                echo "Arquivo: $(echo "$file_info_inner" | sed -n '1p')"
+                echo "$(echo "$file_info_inner" | sed -n '2p')"
+                echo "$(echo "$file_info_inner" | sed -n '3p')"
+                printf "Access: %s.%09d\n" "$file_mtime" "$fake_nanos"
+                printf "Modify: %s.%09d\n" "$file_mtime" "$fake_nanos"
+                printf "Change: %s.%09d\n" "$file_mtime" "$fake_nanos"
                 echo "----------------------------------"
             fi
         done
+        return 0
     fi
 
-    # Exibe os timestamps modificados para o alvo principal
+    # Exibe todos os campos para arquivos normais
+    echo "$file_name"
+    echo "$size_blocks"
+    echo "$device_inode"
     printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
     printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-    printf "Change: %s.%09d\n" "$ctime_date" "$fake_nanos"
+    printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
 }
 
 # Substitui o comando stat original
