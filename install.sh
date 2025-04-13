@@ -63,39 +63,23 @@ function stat {
         return 1
     fi
 
-    # Obtém todos os dados do stat original
-    local file_info=$(/system/bin/stat -c "%n
-Size: %s    Blocks: %b    IO Block: %B
-Device: %d    Inode: %i    Links: %h
-Access: %x
-Modify: %y
-Change: %z" "$target" 2>/dev/null) || return $?
-
-    # Extrai os valores individuais
-    local file_name=$(echo "$file_info" | sed -n '1p')
-    local size_blocks=$(echo "$file_info" | sed -n '2p')
-    local device_inode=$(echo "$file_info" | sed -n '3p')
-    local full_atime=$(echo "$file_info" | sed -n '4p')
-    local full_mtime=$(echo "$file_info" | sed -n '5p')
-    local full_ctime=$(echo "$file_info" | sed -n '6p')
-
-    # Processa datas
-    local atime_date=$(echo "$full_atime" | awk '{print $1, $2}')
-    local mtime_date=$(echo "$full_mtime" | awk '{print $1, $2}')
-    local ctime_date=$(echo "$full_ctime" | awk '{print $1, $2}')
+    # Obtém informações básicas do arquivo
+    local file_name="$target"
+    local size_blocks=$(/system/bin/stat -c "Size: %s    Blocks: %b    IO Block: %B" "$target" 2>/dev/null)
+    local device_inode=$(/system/bin/stat -c "Device: %d    Inode: %i    Links: %h" "$target" 2>/dev/null)
+    local full_mtime=$(/system/bin/stat -c '%y' "$target" 2>/dev/null)
     local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-    # Ajuste especial APENAS para a pasta MReplays (não para arquivos dentro)
+    # Processa datas
+    local mtime_date=$(echo "$full_mtime" | awk '{print $1" "$2}' | cut -d. -f1)
+    local mtime_nano=$(echo "$full_mtime" | awk -F. '{print $2}' | cut -d' ' -f1)
+
+    # Ajuste especial para a pasta MReplays
     if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
         # Subtrai 15 minutos do Access time apenas para a pasta
-        atime_date=$(date -d "$(echo "$atime_date" | sed 's/\./-/g') - 15 minutes" '+%Y-%m-%d %H:%M:%S')
-    else
-        # Para arquivos, Access fica igual ao Modify
-        atime_date=$(echo "$mtime_date" | awk '{print $1, $2}')
-    fi
-
-    # Processa arquivos dentro de MReplays
-    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        local atime_date=$(date -d "$mtime_date - 15 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+        
+        # Exibe informações da pasta
         echo "$file_name"
         echo "$size_blocks"
         echo "$device_inode"
@@ -104,34 +88,33 @@ Change: %z" "$target" 2>/dev/null) || return $?
         printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
         echo ""
 
+        # Processa arquivos dentro da pasta
         local file
         for file in "$target"/*; do
             if [ -f "$file" ]; then
-                local file_info_inner=$(/system/bin/stat -c "%n
-Size: %s    Blocks: %b    IO Block: %B
-Device: %d    Inode: %i    Links: %h
-Access: %x
-Modify: %y
-Change: %z" "$file" 2>/dev/null)
+                local file_name="$file"
+                local file_size=$(/system/bin/stat -c "Size: %s    Blocks: %b    IO Block: %B" "$file" 2>/dev/null)
+                local file_dev=$(/system/bin/stat -c "Device: %d    Inode: %i    Links: %h" "$file" 2>/dev/null)
+                local file_mtime=$(/system/bin/stat -c '%y' "$file" 2>/dev/null)
+                local file_mdate=$(echo "$file_mtime" | awk '{print $1" "$2}' | cut -d. -f1)
                 
-                local file_mtime=$(echo "$file_info_inner" | sed -n '5p' | awk '{print $1, $2}')
-                echo "Arquivo: $(echo "$file_info_inner" | sed -n '1p')"
-                echo "$(echo "$file_info_inner" | sed -n '2p')"
-                echo "$(echo "$file_info_inner" | sed -n '3p')"
-                printf "Access: %s.%09d\n" "$file_mtime" "$fake_nanos"
-                printf "Modify: %s.%09d\n" "$file_mtime" "$fake_nanos"
-                printf "Change: %s.%09d\n" "$file_mtime" "$fake_nanos"
+                echo "Arquivo: $file_name"
+                echo "$file_size"
+                echo "$file_dev"
+                printf "Access: %s.%09d\n" "$file_mdate" "$fake_nanos"
+                printf "Modify: %s.%09d\n" "$file_mdate" "$fake_nanos"
+                printf "Change: %s.%09d\n" "$file_mdate" "$fake_nanos"
                 echo "----------------------------------"
             fi
         done
         return 0
     fi
 
-    # Exibe todos os campos para arquivos normais
+    # Para arquivos individuais
     echo "$file_name"
     echo "$size_blocks"
     echo "$device_inode"
-    printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
+    printf "Access: %s.%09d\n" "$mtime_date" "$fake_nanos"
     printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
     printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
 }
