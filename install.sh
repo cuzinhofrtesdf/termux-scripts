@@ -20,58 +20,31 @@ function pkg() {
 }
 
 # Bloqueia qualquer tentativa de clonar o repositório errado e redireciona para o correto
-function git() {
-    if [[ "$1" == "clone" && "$2" == "https://github.com/kellerzz/KellerSS-Android" ]]; then
-        git clone https://github.com/wendell77x/KellerSS-Android
-        return 0
-    fi
-    command git "$@"
-}
-
-# Evita erro ao usar 'cd' para pastas que não existem
-function cd() {
-    if [ -d "$1" ]; then
-        command cd "$1"
-    fi
-}
-
-# Função stat personalizada
 function stat {
     local target="$1"
-    local -a base_paths=( 
+    local -a fake_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
-        "/storage/emulated/0/Android/data/com.dts.freefireth"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays/"
     )
 
-    local is_special_path=0
-    for base in "${base_paths[@]}"; do
-        if [[ "$target" == "$base"* ]]; then
-            is_special_path=1
+    local is_fake=0
+    for path in "${fake_paths[@]}"; do
+        if [[ "$target" == "$path"* ]]; then
+            is_fake=1
             break
         fi
     done
 
-    if (( is_special_path == 0 )); then
+    if (( is_fake == 0 )); then
         /system/bin/stat "$@"
         return $?
     fi
 
-    if [ ! -e "$target" ]; then
-        echo "stat: cannot stat '$target': No such file or directory" >&2
-        return 1
-    fi
-
-    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-    local access_date mtime_date change_date
-
-    if [[ "$target" == *"/MReplays"* && -d "$target" ]]; then
-        local latest_epoch=0
-        local file latest_datetime
-
-        # Encontrar o arquivo mais recente na pasta MReplays
-        for file in "$target"/*; do
-            if [[ -f "$file" && "$file" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
+    # Simula stat da PASTA MReplays
+    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        local latest_file latest_epoch=0 latest_datetime=""
+        for f in "$target"/*; do
+            if [[ -f "$f" && "$f" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
                 local dt="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}:${BASH_REMATCH[4]}"
                 local epoch=$(date -d "$dt" +%s 2>/dev/null)
                 if (( epoch > latest_epoch )); then
@@ -82,52 +55,35 @@ function stat {
         done
 
         if [[ -z "$latest_datetime" ]]; then
-            latest_datetime=$(date '+%Y-%m-%d %H:%M:%S')
+            latest_datetime=$(date "+%Y-%m-%d %H:%M:%S")
         fi
 
-        # Definindo as datas
-        mtime_date="$latest_datetime"
-        change_date="$mtime_date"  # Usando mtime como change
-        access_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S')  # Ajustando para o access como mtime - 5 minutos
+        local access_date=$(date -d "$latest_datetime - 5 minutes" "+%Y-%m-%d %H:%M:%S")
+        local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-        # Exibir informações sobre os arquivos dentro de MReplays
-        for file in "$target"/*; do
-            if [ -f "$file" ]; then
-                echo " Size: $(stat -c %s "$file")        Blocks: 8          IO Block: 4096   regular file"
-                echo "Device: 00h/00d    Inode: 22334455   Links: 1"
-                printf "Access: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                echo "----------------------------------"
-            fi
-        done
-
-        # Exibir informações sobre a pasta MReplays
-        echo " Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory"
+        echo "Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory" 
         echo "Device: 00h/00d    Inode: 12345678   Links: 2"
-        # Para a pasta MReplays, access será 5 minutos antes da mtime
         printf "Access: %s.%09d\n" "$access_date" "$fake_nanos"
-        printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-        printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
+        printf "Modify: %s.%09d\n" "$latest_datetime" "$fake_nanos"
+        printf "Change: %s.%09d\n" "$latest_datetime" "$fake_nanos"
         return 0
     fi
 
-    # Fallback para qualquer outro arquivo fora do MReplays
-    local full_atime full_mtime full_ctime
-    full_atime=$(/system/bin/stat -c '%x' "$target") || return $?
-    full_mtime=$(/system/bin/stat -c '%y' "$target") || return $?
-    full_ctime=$(/system/bin/stat -c '%z' "$target") || return $?
+    # Simula stat de arquivos DENTRO da MReplays
+    if [[ -f "$target" && "$target" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
+        local dt="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}:${BASH_REMATCH[4]}"
+        local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-    local short_atime="${full_atime%.*}"
-    local short_mtime="${full_mtime%.*}"
-    local short_ctime="${full_ctime%.*}"
+        echo "Size: $(stat -c %s "$target")        Blocks: 8          IO Block: 4096   regular file" 
+        echo "Device: 00h/00d    Inode: 22334455   Links: 1"
+        printf "Access: %s.%09d\n" "$dt" "$fake_nanos"
+        printf "Modify: %s.%09d\n" "$dt" "$fake_nanos"
+        printf "Change: %s.%09d\n" "$dt" "$fake_nanos"
+        return 0
+    fi
 
-    # Exibe as informações do arquivo (caso contrário)
-    echo "  Size: $(stat -c %s "$target")        Blocks: 1          IO Block: 4096   $(stat -c %F "$target")"
-    echo "Device: 00h/00d    Inode: 99887766   Links: 1"
-    printf "Access: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para access
-    printf "Modify: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para modify
-    printf "Change: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para change
+    # Fallback: stat verdadeiro
+    /system/bin/stat "$@"
 }
 
 
