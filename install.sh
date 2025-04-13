@@ -37,56 +37,88 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    local target="${1%/}"
-    
-    # Verifica se é um arquivo de replay ou a pasta MReplays
-    if [[ "$target" =~ /MReplays(/|$) ]]; then
-        # Para ARQUIVOS de replay
-        if [[ "$target" =~ ([0-9]{4})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
-            local dt="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}"
-            local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-            
-            # Extrai informações básicas do arquivo
-            local file_info=$(/system/bin/stat "$target" 2>/dev/null | head -n 4)
-            local perm_info=$(/system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target" 2>/dev/null)
-            
-            echo "$file_info"
-            echo "$perm_info"
-            printf "Access: %s.%09d -0300\n" "$dt" "$fake_nanos"
-            printf "Modify: %s.%09d -0300\n" "$dt" "$fake_nanos"
-            printf "Change: %s.%09d -0300\n" "$dt" "$fake_nanos"
-            return 0
-        fi
+    local target="$1"
+    local -a base_paths=(
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
+        "/storage/emulated/0/Android/data/com.dts.freefireth"
+    )
 
-        # Para PASTA MReplays
-        if [[ "$target" == *"/MReplays" ]]; then
-            local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-            local last_file=$(ls -t "$target" 2>/dev/null | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
-            
-            if [ -n "$last_file" ]; then
-                local dt="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
-                local access_dt=$(date -d "$dt - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$dt")
-            else
-                local dt=$(date '+%Y-%m-%d %H:%M:%S')
-                local access_dt="$dt"
-            fi
-            
-            # Extrai informações básicas da pasta
-            local dir_info=$(/system/bin/stat "$target" 2>/dev/null | head -n 4)
-            local perm_info=$(/system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target" 2>/dev/null)
-            
-            echo "$dir_info"
-            echo "$perm_info"
-            printf "Access: %s.%09d -0300\n" "$access_dt" "$fake_nanos"
-            printf "Modify: %s.%09d -0300\n" "$dt" "$fake_nanos"
-            printf "Change: %s.%09d -0300\n" "$dt" "$fake_nanos"
-            return 0
+    # Verifica se é um path especial
+    local is_special_path=0
+    for base in "${base_paths[@]}"; do
+        if [[ "$target" == "$base"* ]]; then
+            is_special_path=1
+            break
         fi
+    done
+
+    if (( is_special_path == 0 )); then
+        /system/bin/stat "$@"
+        return $?
     fi
 
-    # Para qualquer outro caso
-    /system/bin/stat "$@"
+    if [ ! -e "$target" ]; then
+        echo "stat: cannot stat '$target': No such file or directory" >&2
+        return 1
+    fi
+
+    # Obtém o stat COMPLETO original
+    local original_stat=$(/system/bin/stat "$target" 2>/dev/null)
+    [ -z "$original_stat" ] && return 1
+
+    # Extrai o Modify time original para usar como base
+    local mtime_line=$(echo "$original_stat" | grep "Modify: ")
+    local mtime_date=$(echo "$mtime_line" | awk '{print $2" "$3}' | cut -d. -f1)
+    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    local timezone="-0300"  # Fuso horário fixo
+
+    # Ajuste especial para a pasta MReplays
+    if [[ "$target" == *"/MReplays" && -d "$target" ]]; then
+        # Subtrai 5 minutos do Access time apenas para a pasta
+        local atime_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+        
+        # Imprime TUDO igual ao original, só modificando as linhas Access/Modify/Change
+        echo "$original_stat" | while IFS= read -r line; do
+            if [[ "$line" == "Access: "* ]]; then
+                printf "Access: %s.%09d %s\n" "$atime_date" "$fake_nanos" "$timezone"
+            elif [[ "$line" == "Modify: "* ]]; then
+                printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+            elif [[ "$line" == "Change: "* ]]; then
+                printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+            else
+                echo "$line"
+            fi
+        done
+
+        # Processa arquivos dentro da pasta (opcional)
+        if [ "$(ls -A "$target" 2>/dev/null)" ]; then
+            echo ""
+            for file in "$target"/*; do
+                if [ -f "$file" ]; then
+                    echo "Arquivo: $file"
+                    stat "$file"  # Chama recursivamente para arquivos
+                    echo "----------------------------------"
+                fi
+            done
+        fi
+        return 0
+    fi
+
+    # Para arquivos individuais - imprime tudo igual, só modifica Access/Modify/Change
+    echo "$original_stat" | while IFS= read -r line; do
+        if [[ "$line" == "Access: "* ]]; then
+            printf "Access: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        elif [[ "$line" == "Modify: "* ]]; then
+            printf "Modify: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        elif [[ "$line" == "Change: "* ]]; then
+            printf "Change: %s.%09d %s\n" "$mtime_date" "$fake_nanos" "$timezone"
+        else
+            echo "$line"
+        fi
+    done
 }
+
 # Substitui o comando stat original
 alias stat=stat
 
