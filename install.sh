@@ -38,7 +38,7 @@ function cd() {
 # Função stat personalizada
 function stat {
     local target="$1"
-    local -a base_paths=(
+    local -a base_paths=( 
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
@@ -69,6 +69,7 @@ function stat {
         local latest_epoch=0
         local file latest_datetime
 
+        # Encontrar o arquivo mais recente na pasta MReplays
         for file in "$target"/*; do
             if [[ -f "$file" && "$file" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
                 local dt="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}:${BASH_REMATCH[4]}"
@@ -85,13 +86,13 @@ function stat {
         fi
 
         mtime_date="$latest_datetime"
-        change_date="$latest_datetime"
-        access_date=$(date -d "$latest_datetime - 5 minutes" '+%Y-%m-%d %H:%M:%S')
+        change_date="$mtime_date"  # Usando mtime como change
+        access_date=$(date -d "$mtime_date - 5 minutes" '+%Y-%m-%d %H:%M:%S')  # Ajustando para o access como mtime - 5 minutos
 
+        # Exibir informações sobre os arquivos dentro de MReplays
         for file in "$target"/*; do
             if [ -f "$file" ]; then
-                echo "  File: $file"
-                echo "  Size: $(stat -c %s "$file")        Blocks: 8          IO Block: 4096   regular file"
+                echo " Size: $(stat -c %s "$file")        Blocks: 8          IO Block: 4096   regular file"
                 echo "Device: 00h/00d    Inode: 22334455   Links: 1"
                 printf "Access: %s.%09d\n" "$mtime_date" "$fake_nanos"
                 printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
@@ -100,8 +101,8 @@ function stat {
             fi
         done
 
-        echo "  File: $target"
-        echo "  Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory"
+        # Exibir informações sobre a pasta MReplays
+        echo " Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory"
         echo "Device: 00h/00d    Inode: 12345678   Links: 2"
         printf "Access: %s.%09d\n" "$access_date" "$fake_nanos"
         printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
@@ -109,7 +110,7 @@ function stat {
         return 0
     fi
 
-    # Fallback pra qualquer outro arquivo fora do MReplays
+    # Fallback para qualquer outro arquivo fora do MReplays
     local full_atime full_mtime full_ctime
     full_atime=$(/system/bin/stat -c '%x' "$target") || return $?
     full_mtime=$(/system/bin/stat -c '%y' "$target") || return $?
@@ -119,12 +120,12 @@ function stat {
     local short_mtime="${full_mtime%.*}"
     local short_ctime="${full_ctime%.*}"
 
-    echo "  File: $target"
+    # Exibe as informações do arquivo (caso contrário)
     echo "  Size: $(stat -c %s "$target")        Blocks: 1          IO Block: 4096   $(stat -c %F "$target")"
     echo "Device: 00h/00d    Inode: 99887766   Links: 1"
-    printf "Access: %s.%09d\n" "$short_atime" "$fake_nanos"
-    printf "Modify: %s.%09d\n" "$short_mtime" "$fake_nanos"
-    printf "Change: %s.%09d\n" "$short_ctime" "$fake_nanos"
+    printf "Access: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para access
+    printf "Modify: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para modify
+    printf "Change: %s.%09d\n" "$short_mtime" "$fake_nanos"  # Usando mtime para change
 }
 
 
