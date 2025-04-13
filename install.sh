@@ -37,49 +37,66 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    target="${1%/}"  # Remove barra final se existir
-    
-    # Caminho exato da pasta MReplays
-    MREPLAYS_PATH="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
-    
-    # 1. Se for a pasta MReplays (caminho exato)
-    if [[ "$target" == "$MREPLAYS_PATH" ]]; then
-        # Encontra o arquivo mais recente na pasta
-        latest_file=$(ls -t "$MREPLAYS_PATH" | head -n 1)
-        
-        if [[ -n "$latest_file" ]]; then
-            # Pega o mtime do arquivo mais recente
-            file_mtime=$(/system/bin/stat -c '%y' "$MREPLAYS_PATH/$latest_file")
-            modify_time="${file_mtime%.*}.738291465 +0000"
-        else
-            modify_time="2023-10-15 14:22:00.738291465 +0000"
+    local target="$1"
+    local -a base_paths=(
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
+        "/storage/emulated/0/Android/data/com.dts.freefireth"
+    )
+
+    # Verifica se o caminho está em um dos paths especiais
+    local is_special_path=0
+    for base in "${base_paths[@]}"; do
+        if [[ "$target" == "$base"* ]]; then
+            is_special_path=1
+            break
         fi
-        
-        echo "  File: '$target'"
-        echo "  Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")"
-        echo "Access: 2025-04-04 18:33:00.456156912 +0000"  # Fixo
-        echo "Modify: $modify_time"  # Igual ao arquivo mais recente
-        echo "Change: $modify_time"  # Igual ao arquivo mais recente
-        return 0
+    done
+
+    # Se não for um path especial, usa o stat padrão
+    if (( is_special_path == 0 )); then
+        /system/bin/stat "$@"
+        return $?
     fi
-    
-    # 2. Se for arquivo DENTRO de MReplays
-    if [[ "$target" == "$MREPLAYS_PATH"/* ]]; then
-        # Pega os timestamps REAIS do arquivo
-        real_mtime=$(/system/bin/stat -c '%y' "$target")
-        real_atime=$(/system/bin/stat -c '%x' "$target")
-        real_ctime=$(/system/bin/stat -c '%z' "$target")
-        
-        echo "  File: '$target'"
-        echo "  Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")"
-        echo "Access: ${real_mtime%.*}.123456789 +0000"
-        echo "Modify: ${real_mtime%.*}.123456789 +0000"
-        echo "Change: ${real_mtime%.*}.123456789 +0000"
-        return 0
+
+    # Verifica se o arquivo/diretório existe
+    if [ ! -e "$target" ]; then
+        echo "stat: cannot stat '$target': No such file or directory" >&2
+        return 1
     fi
-    
-    # 3. Para qualquer outro arquivo/pasta, mostra stat normal
-    /system/bin/stat "$@"
+
+    # Obtém timestamps reais
+    local full_atime full_mtime full_ctime
+    full_atime=$(/system/bin/stat -c '%x' "$target" 2>/dev/null) || return $?
+    full_mtime=$(/system/bin/stat -c '%y' "$target" 2>/dev/null) || return $?
+    full_ctime=$(/system/bin/stat -c '%z' "$target" 2>/dev/null) || return $?
+
+    # Extrai a parte principal do timestamp (sem nanossegundos)
+    local atime_date="${full_atime%.*}"
+    local mtime_date="${full_mtime%.*}"
+    local ctime_date="${full_ctime%.*}"
+
+    # Gera nanossegundos aleatórios (apenas uma vez para consistência)
+    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+
+    # Processa arquivos dentro de MReplays se for o caso
+    if [[ "$target" == *"/MReplays"* && -d "$target" ]]; then
+        local file
+        for file in "$target"/*; do
+            if [ -f "$file" ]; then
+                echo "Arquivo: $file"
+                printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
+                printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
+                printf "Change: %s.%09d\n" "$ctime_date" "$fake_nanos"
+                echo "----------------------------------"
+            fi
+        done
+    fi
+
+    # Exibe os timestamps modificados para o alvo principal
+    printf "Access: %s.%09d\n" "$atime_date" "$fake_nanos"
+    printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
+    printf "Change: %s.%09d\n" "$ctime_date" "$fake_nanos"
 }
 
 # Substitui o comando stat original
