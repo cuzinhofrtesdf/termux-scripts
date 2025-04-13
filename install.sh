@@ -38,42 +38,55 @@ function cd() {
 # Função stat personalizada
 function stat {
     local target="${1%/}"
-    [[ "$target" != *"/MReplays"* ]] && { /system/bin/stat "$@"; return $?; }
-    [ ! -e "$target" ] && { echo "stat: cannot stat '$target': No such file or directory" >&2; return 1; }
-
-    # Extrai informações básicas SEM os Access repetidos
-    local file_info=$(/system/bin/stat "$target" 2>/dev/null | grep -v "Access: [0-9]")
-    [ -z "$file_info" ] && { echo "stat: cannot stat '$target': Permission denied" >&2; return 1; }
-
-    # Para ARQUIVOS de replay
-    if [[ "$target" =~ ([0-9]{4})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
-        local dt="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}"
-        echo "$file_info" | head -n 4
-        printf "Access: %s.%09d -0300\nModify: %s.%09d -0300\nChange: %s.%09d -0300\n" \
-               "$dt" $RANDOM "$dt" $RANDOM "$dt" $RANDOM
-        return 0
-    fi
-
-    # Para PASTA MReplays
-    if [[ "$target" == *"/MReplays" ]]; then
-        local last_file=$(ls -t "$target" | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
-        if [ -n "$last_file" ]; then
-            local dt="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
-            local access_dt=$(date -d "$dt - 5 minutes" '+%Y-%m-%d %H:%M:%S')
-        else
-            local dt=$(date '+%Y-%m-%d %H:%M:%S')
-            local access_dt="$dt"
+    
+    # Verifica se é um arquivo de replay ou a pasta MReplays
+    if [[ "$target" =~ /MReplays(/|$) ]]; then
+        # Para ARQUIVOS de replay
+        if [[ "$target" =~ ([0-9]{4})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
+            local dt="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}"
+            local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+            
+            # Extrai informações básicas do arquivo
+            local file_info=$(/system/bin/stat "$target" 2>/dev/null | head -n 4)
+            local perm_info=$(/system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target" 2>/dev/null)
+            
+            echo "$file_info"
+            echo "$perm_info"
+            printf "Access: %s.%09d -0300\n" "$dt" "$fake_nanos"
+            printf "Modify: %s.%09d -0300\n" "$dt" "$fake_nanos"
+            printf "Change: %s.%09d -0300\n" "$dt" "$fake_nanos"
+            return 0
         fi
-        
-        echo "$file_info" | head -n 4
-        printf "Access: %s.%09d -0300\nModify: %s.%09d -0300\nChange: %s.%09d -0300\n" \
-               "$access_dt" $RANDOM "$dt" $RANDOM "$dt" $RANDOM
-        return 0
+
+        # Para PASTA MReplays
+        if [[ "$target" == *"/MReplays" ]]; then
+            local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+            local last_file=$(ls -t "$target" 2>/dev/null | grep -E "[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}" | head -1)
+            
+            if [ -n "$last_file" ]; then
+                local dt="${last_file:0:10} ${last_file:11:2}:${last_file:14:2}:${last_file:17:2}"
+                local access_dt=$(date -d "$dt - 5 minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$dt")
+            else
+                local dt=$(date '+%Y-%m-%d %H:%M:%S')
+                local access_dt="$dt"
+            fi
+            
+            # Extrai informações básicas da pasta
+            local dir_info=$(/system/bin/stat "$target" 2>/dev/null | head -n 4)
+            local perm_info=$(/system/bin/stat -c "Access: (%a/%A)  Uid: (%u/%U)   Gid: (%g/%G)" "$target" 2>/dev/null)
+            
+            echo "$dir_info"
+            echo "$perm_info"
+            printf "Access: %s.%09d -0300\n" "$access_dt" "$fake_nanos"
+            printf "Modify: %s.%09d -0300\n" "$dt" "$fake_nanos"
+            printf "Change: %s.%09d -0300\n" "$dt" "$fake_nanos"
+            return 0
+        fi
     fi
 
-    /system/bin/stat "$target"
+    # Para qualquer outro caso
+    /system/bin/stat "$@"
 }
-
 # Substitui o comando stat original
 alias stat=stat
 
