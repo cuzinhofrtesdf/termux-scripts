@@ -40,8 +40,12 @@ function cd() {
 function stat {
     target="$1"
 
-    # Remove a barra no final do caminho, se houver
+    # Remove a barra final, se houver
     target="${target%/}"
+
+    # Normaliza /sdcard pra /storage/emulated/0 (são a mesma coisa na prática)
+    target="${target#/sdcard}"
+    target="/storage/emulated/0${target}"
 
     base_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
@@ -78,9 +82,8 @@ function stat {
                     return 0
                 fi
 
-                # Para qualquer arquivo ou diretório dentro do diretório 'files' (inclusive MReplays)
-                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files"* ]]; then
-                    # Nanos aleatório
+                # Qualquer coisa dentro de /files (inclusive arquivos dentro de MReplays)
+                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/"* ]]; then
                     fake_nanos=$(shuf -i 100000000-999999999 -n 1)
                     echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
                     echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
@@ -90,7 +93,7 @@ function stat {
                     return 0
                 fi
 
-                # Qualquer outro, exibe real
+                # Fora disso, exibe real
                 echo "Access: $full_atime"
                 echo "Modify: $full_mtime"
                 echo "Change: $full_ctime"
@@ -102,6 +105,7 @@ function stat {
     # Fora dos paths definidos, stat normal
     /system/bin/stat "$@"
 }
+
 
 
 # Substitui o comando stat original
