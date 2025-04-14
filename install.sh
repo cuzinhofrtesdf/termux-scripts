@@ -36,12 +36,11 @@ function cd() {
 }
 
 # Função stat personalizada
-function stat {
+stat() {
     target="$1"
-
     mrep_base="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
 
-    # Se o alvo for um arquivo dentro da MReplays
+    # Verifica se o arquivo está dentro da pasta MReplays
     if [[ "$target" == "$mrep_base/"* && -f "$target" ]]; then
         file_mtime=$(/system/bin/stat -c '%y' "$target")
         mtime_date=${file_mtime%.*}
@@ -53,32 +52,29 @@ function stat {
         return 0
     fi
 
-    # Se for a pasta MReplays (sem barra ou com barra)
+    # Verifica se o comando é para a pasta MReplays, com ou sem o "/"
     if [[ "$target" == "$mrep_base" || "$target" == "$mrep_base/" ]]; then
         latest_file=$(ls -t "$mrep_base"/*.bin 2>/dev/null | head -n 1)
         if [ -n "$latest_file" ]; then
             file_mtime=$(/system/bin/stat -c '%y' "$latest_file")
             mtime_date=${file_mtime%.*}
             fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-
-            # Gera hora aleatória entre 00 e 23
             random_hour=$(shuf -i 0-23 -n 1)
 
-            # Soma 1 dia e aplica hora aleatória
-            access_date=$(date -d "$mtime_date +1 day" +"%Y-%m-%d")
-            access_date="$access_date $(printf "%02d" $random_hour):$(date -d "$mtime_date" +"%M:%S")"
+            # Subtrai 1 dia e aplica hora aleatória
+            access_date=$(date -d "$mtime_date -1 day" +"%Y-%m-%d")
+            access_time="$(printf "%02d" $random_hour):$(date -d "$mtime_date" +"%M:%S")"
+            full_access="${access_date} ${access_time}"
 
-            echo "Access: ${access_date}.${fake_nanos}"
+            echo "Access: ${full_access}.${fake_nanos}"
             echo "Modify: ${mtime_date}.${fake_nanos}"
             echo "Change: ${mtime_date}.${fake_nanos}"
             return 0
         fi
     fi
 
-    # Chamada para o stat normal se não bater com nada acima
     /system/bin/stat "$@"
 }
-
 
 
 # Substitui o comando stat original
