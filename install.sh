@@ -42,6 +42,7 @@ function stat {
 
     base_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays/"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
