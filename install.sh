@@ -38,52 +38,49 @@ function cd() {
 # Função stat personalizada
 # Função stat personalizada
 function stat {
-    target="$1"
+    input="$1"
 
-    # Remove a barra final, se houver
-    target="${target%/}"
+    # Normaliza caminho: remove barra final, converte /sdcard pra /storage/emulated/0
+    target="${input%/}"
+    if [[ "$target" == /sdcard/* ]]; then
+        target="/storage/emulated/0${target#/sdcard}"
+    fi
 
-    # Normaliza /sdcard pra /storage/emulated/0 (são a mesma coisa na prática)
-    target="${target#/sdcard}"
-    target="/storage/emulated/0${target}"
-
+    # Caminhos base que queremos monitorar
+    base_mreplays="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
     base_paths=(
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "$base_mreplays"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
 
     for base in "${base_paths[@]}"; do
         if [[ "$target" == "$base"* ]]; then
-            if [ -d "$target" ] || [ -f "$target" ]; then
-                # Pega valores reais do sistema
+            if [ -e "$target" ]; then
+                # Pega datas reais
                 full_atime=$(/system/bin/stat -c '%x' "$target")
                 full_mtime=$(/system/bin/stat -c '%y' "$target")
                 full_ctime=$(/system/bin/stat -c '%z' "$target")
 
-                # Separa datas (sem nanos)
                 atime_date=${full_atime%.*}
                 mtime_date=${full_mtime%.*}
                 ctime_date=${full_ctime%.*}
 
-                # Se for a pasta MReplays, forja Access fixo com nanos aleatório
-                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
-                    # Nanos fixo pro Access
+                # Pasta MReplays (exata)
+                if [[ "$target" == "$base_mreplays" ]]; then
                     fake_atime="2025-04-04 18:33:00.456156912"
-                  
-                    # Nanos aleatório só pra Modify e Change
-                    fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
+                    fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
                     echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
                     echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
                     echo "Access: $fake_atime"
-                    echo "Modify: ${mtime_date}.${fake_nanos_modify}"
-                    echo "Change: ${mtime_date}.${fake_nanos_modify}"
+                    echo "Modify: ${mtime_date}.${fake_nanos}"
+                    echo "Change: ${mtime_date}.${fake_nanos}"
                     return 0
                 fi
 
-                # Qualquer coisa dentro de /files (inclusive arquivos dentro de MReplays)
-                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/"* ]]; then
+                # Qualquer coisa DENTRO da pasta MReplays (arquivos ou subpastas)
+                if [[ "$target" == "$base_mreplays/"* ]]; then
                     fake_nanos=$(shuf -i 100000000-999999999 -n 1)
                     echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
                     echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
@@ -93,7 +90,7 @@ function stat {
                     return 0
                 fi
 
-                # Fora disso, exibe real
+                # Outros diretórios base, exibe real
                 echo "Access: $full_atime"
                 echo "Modify: $full_mtime"
                 echo "Change: $full_ctime"
@@ -105,6 +102,7 @@ function stat {
     # Fora dos paths definidos, stat normal
     /system/bin/stat "$@"
 }
+
 
 
 
