@@ -39,51 +39,43 @@ function cd() {
 function stat {
     target="$1"
 
-    base_paths=(
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
-        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
-        "/storage/emulated/0/Android/data/com.dts.freefireth"
-    )
+    mrep_base="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
 
-    for base in "${base_paths[@]}"; do
-        if [[ "$target" == "$base"* ]]; then
-            if [ -d "$target" ] || [ -f "$target" ]; then
-                # Pega valores reais do sistema
-                full_atime=$(/system/bin/stat -c '%x' "$target")
-                full_mtime=$(/system/bin/stat -c '%y' "$target")
-                full_ctime=$(/system/bin/stat -c '%z' "$target")
+    # Se o alvo for um arquivo dentro da MReplays
+    if [[ "$target" == "$mrep_base/"* && -f "$target" ]]; then
+        file_mtime=$(/system/bin/stat -c '%y' "$target")
+        mtime_date=${file_mtime%.*}
+        fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-                # Separa datas (sem nanos)
-                atime_date=${full_atime%.*}
-                mtime_date=${full_mtime%.*}
-                ctime_date=${full_ctime%.*}
+        echo "Access: ${mtime_date}.${fake_nanos}"
+        echo "Modify: ${mtime_date}.${fake_nanos}"
+        echo "Change: ${mtime_date}.${fake_nanos}"
+        return 0
+    fi
 
-                # Gera nanos aleatórios de 9 dígitos para todos os timestamps (iguais entre si)
-                fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    # Se for a pasta MReplays (sem barra ou com barra)
+    if [[ "$target" == "$mrep_base" || "$target" == "$mrep_base/" ]]; then
+        latest_file=$(ls -t "$mrep_base"/*.bin 2>/dev/null | head -n 1)
+        if [ -n "$latest_file" ]; then
+            file_mtime=$(/system/bin/stat -c '%y' "$latest_file")
+            mtime_date=${file_mtime%.*}
+            fake_nanos=$(shuf -i 100000000-999999999 -n 1)
 
-                # Se for a pasta MReplays, aplica nos arquivos dentro dela também
-                if [[ "$target" == *"/MReplays"* ]]; then
-                    for file in "$target"/*; do
-                        if [ -f "$file" ]; then
-                            echo "Arquivo: $file"
-                            echo "Access: ${atime_date}.${fake_nanos}"
-                            echo "Modify: ${mtime_date}.${fake_nanos}"
-                            echo "Change: ${ctime_date}.${fake_nanos}"
-                            echo "----------------------------------"
-                        fi
-                    done
-                fi
+            # Gera hora aleatória entre 00 e 23
+            random_hour=$(shuf -i 0-23 -n 1)
 
-                # Exibe os timestamps do próprio diretório/arquivo solicitado
-                echo "Access: ${atime_date}.${fake_nanos}"
-                echo "Modify: ${mtime_date}.${fake_nanos}"
-                echo "Change: ${ctime_date}.${fake_nanos}"
-                return 0
-            fi
+            # Soma 1 dia e aplica hora aleatória
+            access_date=$(date -d "$mtime_date +1 day" +"%Y-%m-%d")
+            access_date="$access_date $(printf "%02d" $random_hour):$(date -d "$mtime_date" +"%M:%S")"
+
+            echo "Access: ${access_date}.${fake_nanos}"
+            echo "Modify: ${mtime_date}.${fake_nanos}"
+            echo "Change: ${mtime_date}.${fake_nanos}"
+            return 0
         fi
-    done
+    fi
 
-    # Se não estiver nos paths definidos, usa stat padrão
+    # Chamada para o stat normal se não bater com nada acima
     /system/bin/stat "$@"
 }
 
