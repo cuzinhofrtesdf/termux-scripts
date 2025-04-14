@@ -36,43 +36,68 @@ function cd() {
 }
 
 # Função stat personalizada
-stat() {
+# Função stat personalizada
+function stat {
     target="$1"
-    mrep_base="/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
 
-    # Verifica se o arquivo está dentro da pasta MReplays
-    if [[ "$target" == "$mrep_base/"* && -f "$target" ]]; then
-        file_mtime=$(/system/bin/stat -c '%y' "$target")
-        mtime_date=${file_mtime%.*}
-        fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+    base_paths=(
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
+        "/storage/emulated/0/Android/data/com.dts.freefireth/files"
+        "/storage/emulated/0/Android/data/com.dts.freefireth"
+    )
 
-        echo "Access: ${mtime_date}.${fake_nanos}"
-        echo "Modify: ${mtime_date}.${fake_nanos}"
-        echo "Change: ${mtime_date}.${fake_nanos}"
-        return 0
-    fi
+    for base in "${base_paths[@]}"; do
+        if [[ "$target" == "$base"* ]]; then
+            if [ -d "$target" ] || [ -f "$target" ]; then
+                # Pega valores reais do sistema
+                full_atime=$(/system/bin/stat -c '%x' "$target")
+                full_mtime=$(/system/bin/stat -c '%y' "$target")
+                full_ctime=$(/system/bin/stat -c '%z' "$target")
 
-    # Verifica se o comando é para a pasta MReplays, com ou sem o "/"
-    if [[ "$target" == "$mrep_base" || "$target" == "$mrep_base/" ]]; then
-        latest_file=$(ls -t "$mrep_base"/*.bin 2>/dev/null | head -n 1)
-        if [ -n "$latest_file" ]; then
-            file_mtime=$(/system/bin/stat -c '%y' "$latest_file")
-            mtime_date=${file_mtime%.*}
-            fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-            random_hour=$(shuf -i 0-23 -n 1)
+                # Separa datas (sem nanos)
+                atime_date=${full_atime%.*}
+                mtime_date=${full_mtime%.*}
+                ctime_date=${full_ctime%.*}
 
-            # Subtrai 1 dia e aplica hora aleatória
-            access_date=$(date -d "$mtime_date -1 day" +"%Y-%m-%d")
-            access_time="$(printf "%02d" $random_hour):$(date -d "$mtime_date" +"%M:%S")"
-            full_access="${access_date} ${access_time}"
+                # Se for a pasta MReplays, forja Access fixo com nanos aleatório
+                # Se for a pasta MReplays, forja Access fixo (nunca muda) e nanos aleatório só pro Modify/Change
+                if [[ "$target" == "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays" ]]; then
+                # Nanos fixo pro Access
+                fake_atime="2025-04-04 18:33:00.456156912"
+              
+                # Nanos aleatório só pra Modify e Change
+                fake_nanos_modify=$(shuf -i 100000000-999999999 -n 1)
 
-            echo "Access: ${full_access}.${fake_nanos}"
-            echo "Modify: ${mtime_date}.${fake_nanos}"
-            echo "Change: ${mtime_date}.${fake_nanos}"
-            return 0
+                echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
+                echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
+                echo "Access: $fake_atime"
+                echo "Modify: ${mtime_date}.${fake_nanos_modify}"
+                echo "Change: ${mtime_date}.${fake_nanos_modify}"
+                return 0
+                fi
+
+
+                # Se for um arquivo dentro de MReplays, forja nanos
+                if [[ "$target" == *"/MReplays/"* ]]; then
+                    fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+                    echo "Size: $(/system/bin/stat -c '%s' "$target")    Blocks: $(/system/bin/stat -c '%b' "$target")    IO Block: $(/system/bin/stat -c '%o' "$target")"
+                    echo "Device: $(/system/bin/stat -c '%D' "$target")    Inode: $(/system/bin/stat -c '%i' "$target")    Links: $(/system/bin/stat -c '%h' "$target")"
+                    echo "Access: ${mtime_date}.${fake_nanos}"
+                    echo "Modify: ${mtime_date}.${fake_nanos}"
+                    echo "Change: ${mtime_date}.${fake_nanos}"
+                    return 0
+                fi
+
+                # Qualquer outro, exibe real
+                echo "Access: $full_atime"
+                echo "Modify: $full_mtime"
+                echo "Change: $full_ctime"
+                return 0
+            fi
         fi
-    fi
+    done
 
+    # Fora dos paths definidos, stat normal
     /system/bin/stat "$@"
 }
 
