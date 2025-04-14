@@ -37,96 +37,55 @@ function cd() {
 
 # Função stat personalizada
 function stat {
-    local target="$1"
-    local -a base_paths=(
+    target="$1"
+
+    base_paths=(
         "/storage/emulated/0/Android/data/com.dts.freefireth/files/MReplays"
         "/storage/emulated/0/Android/data/com.dts.freefireth/files"
         "/storage/emulated/0/Android/data/com.dts.freefireth"
     )
 
-    local is_special_path=0
     for base in "${base_paths[@]}"; do
         if [[ "$target" == "$base"* ]]; then
-            is_special_path=1
-            break
+            if [ -d "$target" ] || [ -f "$target" ]; then
+                # Pega valores reais do sistema
+                full_atime=$(/system/bin/stat -c '%x' "$target")
+                full_mtime=$(/system/bin/stat -c '%y' "$target")
+                full_ctime=$(/system/bin/stat -c '%z' "$target")
+
+                # Separa datas (sem nanos)
+                atime_date=${full_atime%.*}
+                mtime_date=${full_mtime%.*}
+                ctime_date=${full_ctime%.*}
+
+                # Gera nanos aleatórios de 9 dígitos para todos os timestamps (iguais entre si)
+                fake_nanos=$(shuf -i 100000000-999999999 -n 1)
+
+                # Se for a pasta MReplays, aplica nos arquivos dentro dela também
+                if [[ "$target" == *"/MReplays"* ]]; then
+                    for file in "$target"/*; do
+                        if [ -f "$file" ]; then
+                            echo "Arquivo: $file"
+                            echo "Access: ${atime_date}.${fake_nanos}"
+                            echo "Modify: ${mtime_date}.${fake_nanos}"
+                            echo "Change: ${ctime_date}.${fake_nanos}"
+                            echo "----------------------------------"
+                        fi
+                    done
+                fi
+
+                # Exibe os timestamps do próprio diretório/arquivo solicitado
+                echo "Access: ${atime_date}.${fake_nanos}"
+                echo "Modify: ${mtime_date}.${fake_nanos}"
+                echo "Change: ${ctime_date}.${fake_nanos}"
+                return 0
+            fi
         fi
     done
 
-    if (( is_special_path == 0 )); then
-        /system/bin/stat "$@"
-        return $?
-    fi
-
-    if [ ! -e "$target" ]; then
-        echo "stat: cannot stat '$target': No such file or directory" >&2
-        return 1
-    fi
-
-    local fake_nanos=$(shuf -i 100000000-999999999 -n 1)
-    local access_date mtime_date change_date
-
-    if [[ "$target" == *"/MReplays"* && -d "$target" ]]; then
-        local latest_epoch=0
-        local file latest_datetime
-
-        for file in "$target"/*; do
-            if [[ -f "$file" && "$file" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2})-([0-9]{2})-([0-9]{2}) ]]; then
-                local dt="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}:${BASH_REMATCH[4]}"
-                local epoch=$(date -d "$dt" +%s 2>/dev/null)
-                if (( epoch > latest_epoch )); then
-                    latest_epoch=$epoch
-                    latest_datetime="$dt"
-                fi
-            fi
-        done
-
-        if [[ -z "$latest_datetime" ]]; then
-            latest_datetime=$(date '+%Y-%m-%d %H:%M:%S')
-        fi
-
-        mtime_date="$latest_datetime"
-        change_date="$latest_datetime"
-        access_date=$(date -d "$latest_datetime - 5 minutes" '+%Y-%m-%d %H:%M:%S')
-
-        for file in "$target"/*; do
-            if [ -f "$file" ]; then
-                echo "  File: $file"
-                echo "  Size: $(stat -c %s "$file")        Blocks: 8          IO Block: 4096   regular file"
-                echo "Device: 00h/00d    Inode: 22334455   Links: 1"
-                printf "Access: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
-                echo "----------------------------------"
-            fi
-        done
-
-        echo "  File: $target"
-        echo "  Size: $(du -sb "$target" | cut -f1)        Blocks: 8          IO Block: 4096   directory"
-        echo "Device: 00h/00d    Inode: 12345678   Links: 2"
-        printf "Access: %s.%09d\n" "$access_date" "$fake_nanos"
-        printf "Modify: %s.%09d\n" "$mtime_date" "$fake_nanos"
-        printf "Change: %s.%09d\n" "$mtime_date" "$fake_nanos"
-        return 0
-    fi
-
-    # Fallback pra qualquer outro arquivo fora do MReplays
-    local full_atime full_mtime full_ctime
-    full_atime=$(/system/bin/stat -c '%x' "$target") || return $?
-    full_mtime=$(/system/bin/stat -c '%y' "$target") || return $?
-    full_ctime=$(/system/bin/stat -c '%z' "$target") || return $?
-
-    local short_atime="${full_atime%.*}"
-    local short_mtime="${full_mtime%.*}"
-    local short_ctime="${full_ctime%.*}"
-
-    echo "  File: $target"
-    echo "  Size: $(stat -c %s "$target")        Blocks: 1          IO Block: 4096   $(stat -c %F "$target")"
-    echo "Device: 00h/00d    Inode: 99887766   Links: 1"
-    printf "Access: %s.%09d\n" "$short_atime" "$fake_nanos"
-    printf "Modify: %s.%09d\n" "$short_mtime" "$fake_nanos"
-    printf "Change: %s.%09d\n" "$short_ctime" "$fake_nanos"
+    # Se não estiver nos paths definidos, usa stat padrão
+    /system/bin/stat "$@"
 }
-
 
 
 
